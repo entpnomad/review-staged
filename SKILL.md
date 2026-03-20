@@ -1,11 +1,11 @@
 ---
 name: review-staged
-description: Multi-agent parallel code review of staged git changes. Launches two independent reviewer agents (Security/Bugs + Architecture/Quality), cross-references findings, and produces a consolidated verdict. Use when the user asks to "review staged changes", "review my code", "code review", "check staged", "review before commit", or runs /review-staged.
+description: Multi-agent parallel code review of staged git changes. Launches two independent reviewer agents (Security/Bugs + Architecture/Quality), runs a code simplification pass, cross-references findings, and produces a consolidated verdict. Use when the user asks to "review staged changes", "review my code", "code review", "check staged", "review before commit", or runs /review-staged.
 ---
 
 # Multi-Agent Code Review
 
-Launch TWO independent subagents IN PARALLEL to review the staged changes. Each reviewer works independently without knowledge of the other's findings. After both complete, you (the orchestrator) cross-reference and validate their findings.
+Launch TWO independent subagents IN PARALLEL to review the staged changes, then run a code simplification pass. Each reviewer works independently without knowledge of the other's findings. After all phases complete, you (the orchestrator) cross-reference and validate their findings.
 
 This follows Anthropic's AI code review pattern: AI handles pattern matching, security scanning, bug detection, and style adherence. Humans focus on strategic thinking and acceptance testing.
 
@@ -109,9 +109,39 @@ Only if you genuinely would have done something differently:
 What's done well - acknowledge good patterns and decisions.
 ```
 
-## Phase 2: Cross-Reference and Validate
+## Phase 2: Code Simplification
 
-After both reviewers complete, you (the orchestrator) must:
+After BOTH reviewers complete, launch a `code-simplifier` subagent to analyze the staged changes for simplification opportunities.
+
+Use the Agent tool with `subagent_type: "code-simplifier"`:
+
+```
+Review the staged git changes (run `git diff --cached`, or `git diff` if empty) and analyze
+the modified code for simplification opportunities. Focus on recently changed code only.
+
+Identify:
+- Unnecessary complexity and over-abstraction
+- Dead code and unused variables/imports
+- Redundant logic and duplicate patterns
+- Overly verbose code that could be cleaner
+- Premature abstractions (helpers/utilities for one-time operations)
+- Opportunities for more readable, maintainable code
+
+For each finding, report:
+- **Location**: `file:line`
+- **Severity**: High (actively harmful complexity) / Medium (worth simplifying) / Low (minor cleanup)
+- **Current**: What the code does now
+- **Simplified**: How it could be simpler
+- **Benefit**: Why the simpler version is better (readability, maintainability, performance)
+
+Do NOT suggest simplifications that change behavior or remove intentional safeguards.
+Do NOT flag code that wasn't part of the staged changes.
+If the code is already clean and simple, say so.
+```
+
+## Phase 3: Cross-Reference and Validate
+
+After all reviews complete, you (the orchestrator) must:
 
 1. **Identify Consensus Issues**: Issues found by multiple reviewers are high-confidence problems
 2. **Investigate Unique Findings**: For issues found by only one reviewer:
@@ -121,7 +151,7 @@ After both reviewers complete, you (the orchestrator) must:
 3. **Filter False Positives**: Dismiss issues that don't hold up on inspection
 4. **Prioritize**: Focus on Critical/High issues first
 
-## Phase 3: Final Summary
+## Phase 4: Final Summary
 
 Provide consolidated report:
 
@@ -146,6 +176,12 @@ Issues found by one reviewer, confirmed valid after your investigation.
 
 ### Dismissed Findings
 Issues flagged but invalid on closer inspection (explain why).
+
+### Simplification Opportunities
+From the code-simplifier phase.
+
+| Location | Severity | Current | Simplified | Benefit |
+| -------- | -------- | ------- | ---------- | ------- |
 
 ### Suggested Improvements
 Non-blocking improvements worth considering.
@@ -183,4 +219,5 @@ To adapt this skill for your project:
 
 1. **Reviewer roles**: Modify the reviewer prompts to match your tech stack (e.g., add React-specific checks, database query patterns, or framework conventions)
 2. **Blocking criteria**: Add project-specific blocking issues to the table (e.g., forbidden imports, required patterns, naming conventions)
-3. **Additional phases**: Add a Phase between reviews and cross-reference for automated tools (linters, type checkers, test runs)
+3. **Code simplifier**: Customize the simplification prompt to focus on patterns relevant to your codebase (e.g., framework-specific anti-patterns, preferred idioms)
+4. **Additional phases**: Add more phases for automated tools (linters, type checkers, test runs)
