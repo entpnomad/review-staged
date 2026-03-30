@@ -1,3 +1,5 @@
+🌐 [English](README.md) | [Español](README.es.md) | [Français](README.fr.md) | [Italiano](README.it.md)
+
 # Review Staged
 
 A Claude Code skill that runs multi-agent parallel code review on your staged git changes.
